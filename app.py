@@ -149,24 +149,19 @@ def render_sidebar():
     with st.sidebar:
         st.header("⚙️ Configuration")
 
-        # API Configuration
-        st.subheader("🤖 LLM Provider")
-        provider = st.selectbox(
-            "Select Provider",
-            ["openai", "anthropic"],
-            help="Choose the LLM provider"
-        )
+        # Load API key from secrets and set fixed model
+        provider = "openai"
+        model = "gpt-4o"
 
-        if provider == "openai":
-            api_key = st.text_input("OpenAI API Key", type="password")
-            if api_key:
-                os.environ["OPENAI_API_KEY"] = api_key
-            model = st.selectbox("Model", ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo"])
+        # Load OpenAI API key from secrets.toml
+        if "openai" in st.secrets:
+            os.environ["OPENAI_API_KEY"] = st.secrets["openai"]
+            st.success("✅ API Key loaded")
         else:
-            api_key = st.text_input("Anthropic API Key", type="password")
-            if api_key:
-                os.environ["ANTHROPIC_API_KEY"] = api_key
-            model = st.selectbox("Model", ["claude-3-5-sonnet-20241022", "claude-3-opus-20240229"])
+            st.error("❌ OpenAI API key not found in secrets.toml")
+
+        # Display locked configuration
+        st.info(f"🤖 Model: **{model}**")
 
         st.divider()
 
