@@ -109,6 +109,27 @@ def get_characters() -> list[Character]:
                 "at around 3:30 AM (about 6 hours after the incident). He was at the hospital attending to "
                 "his brother which caused the delay."
             ),
+            chief_exam_topics=[
+                "Ask witness to state his relationship with the deceased",
+                "Ask what happened on the evening of 14th March 2025",
+                "Ask how the collision occurred between the car and motorcycle",
+                "Ask what the accused did after the collision — did he go to his car boot?",
+                "Ask witness to describe the assault — how many blows, where on the body",
+                "Ask witness to identify the accused in court",
+                "Ask what happened after the assault — hospital, death",
+                "Ask when and why FIR was filed — explain the 6-hour delay",
+                "Present FIR (E1) and ask witness to identify it",
+            ],
+            cross_exam_points=[
+                "You are the brother of the deceased — you are an interested witness, correct?",
+                "You filed the FIR 6 hours after the incident. Why the delay?",
+                "In your FIR you did not mention that the accused opened the car boot. Is that correct?",
+                "Is it true that your brother Sunil and his companions attacked the accused first?",
+                "Did you see any injuries on the accused at the scene?",
+                "How far were you standing when the blow was struck?",
+                "Is it not true that there was prior enmity between your family and the accused?",
+                "You were emotional and traumatised — can you be sure of the exact sequence of events?",
+            ],
         ),
         Character(
             name="Ramesh Gupta",
@@ -123,6 +144,27 @@ def get_characters() -> list[Character]:
                 "fell. People gathered. He went inside his shop and called police. He has CCTV in his shop "
                 "which captured part of the incident. He does not know either party personally."
             ),
+            chief_exam_topics=[
+                "Ask witness where his shop is located relative to Lokhandwala Circle",
+                "Ask what he was doing at approximately 9:30 PM on 14th March 2025",
+                "Ask what first drew his attention — what did he hear/see",
+                "Ask witness to describe what he saw — the argument, the assault",
+                "Ask whether he saw where the rod came from — car boot or elsewhere",
+                "Ask what happened after the blow was struck",
+                "Ask whether his shop has CCTV and whether it captured the incident",
+                "Present CCTV footage (E4) and ask witness to confirm it is from his shop",
+                "Ask whether he knows either party personally",
+            ],
+            cross_exam_points=[
+                "How far was your shop from the spot where the incident occurred?",
+                "It was 9:30 PM — was it dark? What was the lighting like?",
+                "You said you saw him go to his car — but could you clearly see the car boot from your position?",
+                "Did you see who started the physical altercation?",
+                "The CCTV footage is grainy — do you agree it does not clearly show faces?",
+                "Is it possible that there were other persons involved who attacked the accused?",
+                "When did you call the police? Why did you not intervene?",
+                "You are nervous — are you sure about the sequence of events?",
+            ],
         ),
         Character(
             name="Inspector Suresh Jadhav",
@@ -137,6 +179,26 @@ def get_characters() -> list[Character]:
                 "Sent the iron rod for forensic analysis — blood matched deceased. Post-mortem confirmed cause "
                 "of death as severe cranial trauma. Filed charge-sheet under Section 304 and 323 IPC."
             ),
+            chief_exam_topics=[
+                "Ask when the FIR was received and what action was taken",
+                "Ask about visiting the scene — what was found there",
+                "Ask about recovery of the iron rod (E3) — where exactly, condition",
+                "Ask about seizure of CCTV footage from PW-2's shop",
+                "Ask about arrest of the accused — when, where, his condition",
+                "Present post-mortem report (E2) and ask about cause of death",
+                "Present forensic report (E5) and ask about blood match on the rod",
+                "Ask about filing of charge-sheet",
+            ],
+            cross_exam_points=[
+                "The FIR was received at 3:30 AM — nearly 6 hours after the incident. Did you investigate this delay?",
+                "Did you find any injuries on the accused when he was arrested?",
+                "Did the accused tell you that he acted in self-defence?",
+                "Were there other persons at the scene apart from PW-1 and the deceased?",
+                "The CCTV footage does not clearly show who struck first — do you agree?",
+                "Did you investigate whether the deceased had companions who may have attacked the accused?",
+                "The iron rod — did you consider it could have been lying on the road rather than from the car?",
+                "Did you collect the medical report of the accused showing his injuries?",
+            ],
         ),
         Character(
             name="Kiran Sharma",

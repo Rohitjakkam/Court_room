@@ -160,8 +160,6 @@ class AgentManager:
                 personality=pw.personality,
                 facts_known=pw.facts_known,
                 description=pw.description,
-                stage=stage_str,
-                exam_phase="Not yet called",
             )
             self.agents[f"pw_{i}"] = CourtAgent(pw, prompt)
 
@@ -174,8 +172,6 @@ class AgentManager:
                 personality=dw.personality,
                 facts_known=dw.facts_known,
                 description=dw.description,
-                stage=stage_str,
-                exam_phase="Not yet called",
             )
             self.agents[f"dw_{i}"] = CourtAgent(dw, prompt)
 

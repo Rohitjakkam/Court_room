@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(dir:*)",
+      "Bash(git ls-tree:*)",
+      "Bash(git --no-pager show:*)",
+      "Bash(git -C \"d:/Court_room/court_room2\" ls-tree:*)",
+      "Bash(git -C d:/Court_room/court_room2 ls-tree:*)",
+      "Bash(git -C \"d:/Court_room/court_room2\" log --oneline --name-only)",
+      "Bash(git -C \"d:/Court_room/court_room2\" --no-pager show b4d216f:app.py)",
+      "Bash(git -C d:/Court_room/court_room2 --no-pager show b4d216f:app.py)",
+      "Bash(pip install:*)",
+      "Bash(timeout 10 streamlit run:*)"
+    ]
+  }
+}

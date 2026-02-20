@@ -250,6 +250,54 @@ class TrialEngine:
         self.add_dialogue(player_char.name, self.state.player_role, player_input, is_player=True)
         self.state.waiting_for_player = False
 
+    # ─── WITNESS TESTIMONY HELPERS ─────────────────────────────
+
+    def _get_witness_testimony(self, wi: int, is_dw: bool = False) -> str:
+        """Get all testimony for a specific witness so far."""
+        transcripts = self.state.dw_chief_exam_transcripts if is_dw else self.state.chief_exam_transcripts
+        lines = transcripts.get(wi, [])
+        return "\n".join(lines) if lines else "(No testimony yet)"
+
+    def _record_testimony(self, wi: int, speaker: str, text: str, is_dw: bool = False):
+        """Record a Q&A exchange into the witness transcript."""
+        transcripts = self.state.dw_chief_exam_transcripts if is_dw else self.state.chief_exam_transcripts
+        if wi not in transcripts:
+            transcripts[wi] = []
+        transcripts[wi].append(f"{speaker}: {text}")
+
+    def _get_next_exam_topic(self, wi: int) -> str:
+        """Get the next examination topic for the prosecutor (chief exam)."""
+        witness = self.pw_witnesses[wi]
+        topics = witness.chief_exam_topics
+        idx = self.state.witness_question_count
+        if idx < len(topics):
+            return topics[idx]
+        return "Ask any remaining clarifying question to conclude this examination."
+
+    def _get_next_cross_point(self, wi: int) -> str:
+        """Get the next cross-examination point for the defence."""
+        witness = self.pw_witnesses[wi]
+        points = witness.cross_exam_points
+        idx = self.state.witness_question_count
+        if idx < len(points):
+            return points[idx]
+        return "Ask any final challenging question to conclude cross-examination."
+
+    def _build_witness_context(self, wi: int, phase: WitnessExamPhase, question: str) -> str:
+        """Build rich context for a witness to answer, including their prior testimony."""
+        witness = self.pw_witnesses[wi]
+        prior = self._get_witness_testimony(wi)
+        return (
+            f"You are {witness.name} ({witness.designation}) testifying in court.\n"
+            f"Current phase: {phase.value}\n\n"
+            f"YOUR PRIOR TESTIMONY IN THIS TRIAL (you MUST stay consistent with this):\n{prior}\n\n"
+            f"YOUR KNOWLEDGE: {witness.facts_known}\n\n"
+            f"Question asked: \"{question}\"\n"
+            f"Answer the question concisely (1-3 sentences). Stay consistent with your prior testimony."
+        )
+
+    # ─── STAGE 5: WITNESS EXAMINATION ────────────────────────
+
     def run_witness_examination(self) -> bool:
         """Stage 5: Witness Examination — handles all PW witnesses with Chief/Cross/Re-exam."""
         wi = self.state.current_witness_index
@@ -262,7 +310,6 @@ class TrialEngine:
             return True
 
         witness = self.pw_witnesses[wi]
-        phase = self.state.current_exam_phase
 
         if not self.state.stage_initialized:
             # Call the witness
@@ -275,6 +322,7 @@ class TrialEngine:
             self.add_dialogue(judge.name, RoleType.JUDGE, f"{witness.name}, please tell the truth. You may begin.")
             self.state.stage_initialized = True
             self.state.current_exam_phase = WitnessExamPhase.CHIEF
+            self.state.witness_question_count = 0
 
         self.state.waiting_for_player = True
         return False
@@ -287,55 +335,42 @@ class TrialEngine:
         player_char = self.get_character_by_role(self.state.player_role)
         witness_key = f"pw_{wi}"
 
-        # Determine who is asking/answering
+        # Determine examiner for this phase
         if phase == WitnessExamPhase.CHIEF:
             examiner_role = RoleType.PROSECUTOR
-            examiner_key = "prosecutor"
         elif phase == WitnessExamPhase.CROSS:
             examiner_role = RoleType.DEFENCE
-            examiner_key = "defence"
-        else:  # RE_EXAMINATION
+        else:
             examiner_role = RoleType.PROSECUTOR
-            examiner_key = "prosecutor"
 
-        # If player is the examiner — they ask a question, witness AI answers
+        # Player IS the examiner — they ask, witness AI answers
         if self.is_player(examiner_role):
             self.add_dialogue(player_char.name, self.state.player_role, player_input, is_player=True)
-            context = (
-                f"Stage 5: Witness Examination. Phase: {phase.value}. "
-                f"You are {witness.name} ({witness.designation}). "
-                f"The {'prosecutor' if examiner_role == RoleType.PROSECUTOR else 'defence counsel'} asked: \"{player_input}\"\n"
-                f"Answer the question based on what you know."
-            )
-            witness_response = self.agents.get_response(witness_key, context, player_input)
-            self.add_dialogue(witness.name, RoleType.WITNESS_PW, witness_response)
+            self._record_testimony(wi, "Q", player_input)
 
-        # If player is the witness — examiner AI asks, player answers
+            w_context = self._build_witness_context(wi, phase, player_input)
+            witness_response = self.agents.get_response(witness_key, w_context, player_input)
+            self.add_dialogue(witness.name, RoleType.WITNESS_PW, witness_response)
+            self._record_testimony(wi, "A", witness_response)
+            self.state.witness_question_count += 1
+
+        # Player is the witness — they answer (examiner AI question already shown)
         elif self.is_player(RoleType.WITNESS_PW):
             self.add_dialogue(player_char.name, self.state.player_role, player_input, is_player=True)
+            self._record_testimony(wi, "A", player_input)
+            self.state.witness_question_count += 1
 
-        # If player is judge or accused — AI handles both examiner and witness
+        # Player is judge — interjection, then AI continues
         elif self.is_player(RoleType.JUDGE):
-            # Player as judge can interject
             self.add_dialogue(player_char.name, self.state.player_role, player_input, is_player=True)
-            # AI continues examination
-            examiner_char = self.get_character_by_role(examiner_role)
-            context = (
-                f"Stage 5: Witness Examination. Phase: {phase.value}. Examining {witness.name}. "
-                f"The Judge said: \"{player_input}\". Continue your examination.\n{self.get_recent_context(5)}"
-            )
-            q = self.agents.get_response(examiner_key, context)
-            self.add_dialogue(examiner_char.name, examiner_role, q)
+            # AI examiner and witness exchange happens via auto_witness_exchange next
 
-            w_context = f"Phase: {phase.value}. Question: \"{q}\". Answer based on your knowledge."
-            a = self.agents.get_response(witness_key, w_context, q)
-            self.add_dialogue(witness.name, RoleType.WITNESS_PW, a)
+        # Player is accused or other — just observe
         else:
-            # Player is accused or other — just observe, AI handles
             self.add_dialogue(player_char.name, self.state.player_role, player_input, is_player=True)
 
     def auto_witness_exchange(self):
-        """Generate one AI examiner question + AI witness answer (for non-examiner players)."""
+        """Generate one AI examiner question + AI witness answer."""
         wi = self.state.current_witness_index
         witness = self.pw_witnesses[wi]
         phase = self.state.current_exam_phase
@@ -352,37 +387,71 @@ class TrialEngine:
             examiner_key = "prosecutor"
 
         if self.is_player(examiner_role):
-            return  # player asks
+            return  # player asks manually
 
         examiner_char = self.get_character_by_role(examiner_role)
-        context = (
-            f"Stage 5: Witness Examination. Phase: {phase.value}. "
-            f"You are examining {witness.name} ({witness.designation}). "
-            f"Ask your next question.\n{self.get_recent_context(5)}"
-        )
+
+        # Build structured context for the examiner
+        if phase == WitnessExamPhase.CHIEF:
+            topic = self._get_next_exam_topic(wi)
+            prior = self._get_witness_testimony(wi)
+            context = (
+                f"EXAMINATION-IN-CHIEF of {witness.name} ({witness.designation}).\n"
+                f"You are the Public Prosecutor examining this witness.\n\n"
+                f"INSTRUCTION: {topic}\n\n"
+                f"TESTIMONY SO FAR:\n{prior}\n\n"
+                f"Ask ONE clear, open-ended question. Do NOT repeat a question already asked."
+            )
+        elif phase == WitnessExamPhase.CROSS:
+            point = self._get_next_cross_point(wi)
+            chief_transcript = self._get_witness_testimony(wi)
+            context = (
+                f"CROSS-EXAMINATION of {witness.name} ({witness.designation}).\n"
+                f"You are Defence Counsel cross-examining this prosecution witness.\n\n"
+                f"WITNESS'S CHIEF-EXAM TESTIMONY (use this to find contradictions):\n{chief_transcript}\n\n"
+                f"INSTRUCTION: {point}\n\n"
+                f"Ask ONE pointed, leading question. Challenge credibility or expose contradictions."
+            )
+        else:  # RE_EXAMINATION
+            chief_transcript = self._get_witness_testimony(wi)
+            context = (
+                f"RE-EXAMINATION of {witness.name} ({witness.designation}).\n"
+                f"You are the Public Prosecutor. Clarify any point damaged during cross-examination.\n\n"
+                f"FULL TESTIMONY SO FAR:\n{chief_transcript}\n\n"
+                f"Ask ONE clarifying question about a point raised in cross-examination, or say 'No re-examination, My Lord.'"
+            )
+
         question = self.agents.get_response(examiner_key, context)
         self.add_dialogue(examiner_char.name, examiner_role, question)
+        self._record_testimony(wi, "Q", question)
 
+        # Witness answers (if not player)
         if not self.is_player(RoleType.WITNESS_PW):
-            w_context = f"Phase: {phase.value}. Question: \"{question}\". Answer based on your knowledge."
+            w_context = self._build_witness_context(wi, phase, question)
             answer = self.agents.get_response(witness_key, w_context, question)
             self.add_dialogue(witness.name, RoleType.WITNESS_PW, answer)
+            self._record_testimony(wi, "A", answer)
+
+        self.state.witness_question_count += 1
 
     def advance_exam_phase(self):
         """Move to next exam phase or next witness."""
         phase = self.state.current_exam_phase
         if phase == WitnessExamPhase.CHIEF:
             self.state.current_exam_phase = WitnessExamPhase.CROSS
+            self.state.witness_question_count = 0  # reset for cross
             judge = self.get_character_by_role(RoleType.JUDGE)
             self.add_dialogue(judge.name, RoleType.JUDGE, "Defence, you may cross-examine the witness.")
         elif phase == WitnessExamPhase.CROSS:
             self.state.current_exam_phase = WitnessExamPhase.RE_EXAMINATION
+            self.state.witness_question_count = 0  # reset for re-exam
             judge = self.get_character_by_role(RoleType.JUDGE)
             self.add_dialogue(judge.name, RoleType.JUDGE, "Prosecution, any re-examination?")
         else:
             # Done with this witness, move to next
             self.state.current_witness_index += 1
             self.state.current_exam_phase = WitnessExamPhase.CHIEF
+            self.state.witness_question_count = 0
             self.state.stage_initialized = False
 
     def run_accused_statement(self) -> bool:
@@ -480,6 +549,19 @@ class TrialEngine:
         self.state.waiting_for_player = True
         return False
 
+    def _build_dw_context(self, dwi: int, phase: WitnessExamPhase, question: str) -> str:
+        """Build rich context for a defence witness to answer."""
+        dw = self.dw_witnesses[dwi]
+        prior = self._get_witness_testimony(dwi, is_dw=True)
+        return (
+            f"You are {dw.name} ({dw.designation}) testifying in court.\n"
+            f"Current phase: {phase.value}\n\n"
+            f"YOUR PRIOR TESTIMONY (stay consistent):\n{prior}\n\n"
+            f"YOUR KNOWLEDGE: {dw.facts_known}\n\n"
+            f"Question asked: \"{question}\"\n"
+            f"Answer concisely (1-3 sentences). Stay consistent with prior testimony."
+        )
+
     def handle_dw_exam_input(self, player_input: str):
         dwi = self.state.dw_index
         dw = self.dw_witnesses[dwi]
@@ -489,19 +571,19 @@ class TrialEngine:
 
         if phase == WitnessExamPhase.CHIEF:
             examiner_role = RoleType.DEFENCE
-            examiner_key = "defence"
         elif phase == WitnessExamPhase.CROSS:
             examiner_role = RoleType.PROSECUTOR
-            examiner_key = "prosecutor"
         else:
             examiner_role = RoleType.DEFENCE
-            examiner_key = "defence"
 
         if self.is_player(examiner_role):
             self.add_dialogue(player_char.name, self.state.player_role, player_input, is_player=True)
-            context = f"Phase: {phase.value}. Question: \"{player_input}\". Answer."
-            response = self.agents.get_response(dw_key, context, player_input)
+            self._record_testimony(dwi, "Q", player_input, is_dw=True)
+
+            w_context = self._build_dw_context(dwi, phase, player_input)
+            response = self.agents.get_response(dw_key, w_context, player_input)
             self.add_dialogue(dw.name, RoleType.WITNESS_DW, response)
+            self._record_testimony(dwi, "A", response, is_dw=True)
         else:
             self.add_dialogue(player_char.name, self.state.player_role, player_input, is_player=True)
 
@@ -525,14 +607,39 @@ class TrialEngine:
             return
 
         examiner_char = self.get_character_by_role(examiner_role)
-        context = f"Stage 7: Defence Evidence. Phase: {phase.value}. Examining {dw.name}. Ask next question.\n{self.get_recent_context(5)}"
+        prior = self._get_witness_testimony(dwi, is_dw=True)
+
+        if phase == WitnessExamPhase.CHIEF:
+            context = (
+                f"EXAMINATION-IN-CHIEF of {dw.name} ({dw.designation}).\n"
+                f"You are Defence Counsel examining your witness.\n\n"
+                f"TESTIMONY SO FAR:\n{prior}\n\n"
+                f"Ask ONE clear, open-ended question about what the witness knows."
+            )
+        elif phase == WitnessExamPhase.CROSS:
+            context = (
+                f"CROSS-EXAMINATION of {dw.name} ({dw.designation}).\n"
+                f"You are the Public Prosecutor cross-examining this defence witness.\n\n"
+                f"WITNESS'S TESTIMONY:\n{prior}\n\n"
+                f"Ask ONE pointed question to challenge credibility. Note: this witness is the wife of the accused."
+            )
+        else:
+            context = (
+                f"RE-EXAMINATION of {dw.name} ({dw.designation}).\n"
+                f"You are Defence Counsel. Clarify one point from cross-examination.\n\n"
+                f"FULL TESTIMONY:\n{prior}\n\n"
+                f"Ask ONE clarifying question or say 'No re-examination, My Lord.'"
+            )
+
         question = self.agents.get_response(examiner_key, context)
         self.add_dialogue(examiner_char.name, examiner_role, question)
+        self._record_testimony(dwi, "Q", question, is_dw=True)
 
         if not self.is_player(RoleType.WITNESS_DW):
-            w_context = f"Phase: {phase.value}. Question: \"{question}\". Answer."
+            w_context = self._build_dw_context(dwi, phase, question)
             answer = self.agents.get_response(dw_key, w_context, question)
             self.add_dialogue(dw.name, RoleType.WITNESS_DW, answer)
+            self._record_testimony(dwi, "A", answer, is_dw=True)
 
     def advance_dw_exam_phase(self):
         phase = self.state.dw_exam_phase

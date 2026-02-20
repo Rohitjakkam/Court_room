@@ -69,6 +69,8 @@ class Character(BaseModel):
     description: str
     personality: str
     facts_known: str  # what this character knows about the case
+    chief_exam_topics: list[str] = []  # topics prosecutor should cover
+    cross_exam_points: list[str] = []  # weak points defence should target
 
 
 class CaseInfo(BaseModel):
@@ -108,3 +110,8 @@ class GameState(BaseModel):
     waiting_for_player: bool = False
     sub_step: int = 0
     final_arg_turn: str = "prosecution"  # prosecution or defence
+    # Track exam question count per witness to follow structured topics
+    witness_question_count: int = 0
+    # Store chief-exam transcript per witness index for cross-exam reference
+    chief_exam_transcripts: dict[int, list[str]] = {}
+    dw_chief_exam_transcripts: dict[int, list[str]] = {}
